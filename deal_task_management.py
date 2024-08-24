@@ -8,7 +8,7 @@ st.set_page_config(layout="wide")
 # Add a logo and subtext
 logo_path = "https://storage.googleapis.com/absolute_gis_public/Images/lennar_indy.jpg"  # Replace with your logo file name or URL
 st.image(logo_path, width=150)
-st.markdown("<h4 style='text-align: left; color: #015cab;'>Created by Lennar Indianapolis Division</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: left; color: #015cab;'>LMS Deal and Task Viewer: Created by Lennar Indianapolis Division</h4>", unsafe_allow_html=True)
 
 # Function to clean up the column names
 def clean_column_names(columns):
