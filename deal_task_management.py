@@ -13,11 +13,11 @@ logo_path = "https://storage.googleapis.com/absolute_gis_public/Images/lennar_in
 st.image(logo_path, width=150)
 
 # Move the bold text 'Deal and Task Management Interface' here
-st.title("Deal and Task Management Interface")
+st.title("Deal and Task Management Interface ")
 
 # Add the subtext after the title
 st.markdown(
-    "<h4 style='text-align: left; color: #015cab;'>LMS Deal and Task Viewer: Created by Lennar Indianapolis Division</h4>",
+    "<h4 style='text-align: left; color: #015cab;'>Created by Lennar Indianapolis Division</h4>",
     unsafe_allow_html=True
 )
 
