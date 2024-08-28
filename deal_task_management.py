@@ -192,30 +192,31 @@ if uploaded_files and len(uploaded_files) == 2:
                 completed_count = filtered_tasks_df[filtered_tasks_df['Status Reason'] == 'Completed'].shape[0]
                 not_started_count = filtered_tasks_df[filtered_tasks_df['Status Reason'] == 'Not Started'].shape[0]
 
+                # Initialize task_filter with a default value
+                task_filter = "Show All"  # Default filter value
+
                 # Add a filter for tasks based on 'Status Reason' with counts in the dropdown label
                 task_filter_label = f"<strong style='font-size:18px; background-color: #e8f2fc;'>&nbsp;&nbsp;Tasks:&nbsp;In Progress: {in_progress_count}, Completed: {completed_count}, Not Started: {not_started_count}&nbsp;&nbsp;</strong>"
                 st.markdown(task_filter_label, unsafe_allow_html=True)
-                task_filter = st.selectbox(
-                    "",
-                    ['Show All', 'In Progress', 'Completed', 'Not Started'],
-                    key=unique_key
-                )
 
-                # Apply custom CSS to adjust dropdown width
-                st.markdown(
-                    """
-                    <style>
-                    div[data-testid="stSelectbox"] {
-                        width: 40%;
-                        margin-left: auto;
-                        margin-right: auto;
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True
-                )
+                # Create a row of buttons for filtering tasks with unique keys
+                col1, col2, col3, col4 = st.columns(4)
 
-                if task_filter != 'Show All':
+                with col1:
+                    if st.button("Show All Tasks", key=f"{deal_name}_show_all"):
+                        task_filter = "Show All"
+                with col2:
+                    if st.button("In Progress", key=f"{deal_name}_in_progress"):
+                        task_filter = "In Progress"
+                with col3:
+                    if st.button("Completed", key=f"{deal_name}_completed"):
+                        task_filter = "Completed"
+                with col4:
+                    if st.button("Not Started", key=f"{deal_name}_not_started"):
+                        task_filter = "Not Started"
+
+                # Filter the DataFrame based on the button clicked
+                if task_filter != "Show All":
                     filtered_tasks_df = filtered_tasks_df[filtered_tasks_df['Status Reason'] == task_filter]
 
                 # Construct the label for the expander
@@ -227,6 +228,7 @@ if uploaded_files and len(uploaded_files) == 2:
 
                 # Set the maximum number of rows to display
                 max_display_rows = 5
+
 
                 # Calculate the height for the dataframe
                 row_height = 35  # Approximate row height in pixels
