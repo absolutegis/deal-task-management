@@ -114,11 +114,10 @@ if uploaded_files and len(uploaded_files) == 2:
 
         # Add buttons and deal selection at the top in a horizontal line
         # Add buttons and deal selection at the top in a horizontal line
-        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+        # Add buttons and deal selection at the top in a horizontal line
+        col1, col2, col3 = st.columns([1, 1, 1])
 
         with col1:
-            selected_deal = st.selectbox("", ['Show All Deals'] + deals_df['Regarding'].dropna().unique().tolist())
-        with col2:
             download_button_placeholder = st.empty()
             download_button_placeholder.download_button(
                 label="Download Excel",
@@ -127,12 +126,20 @@ if uploaded_files and len(uploaded_files) == 2:
                 disabled=True,
                 key="download_excel"
             )
-        with col3:
+        with col2:
             minimize_all_button = st.button("Minimize All")
-        with col4:
+        with col3:
             maximize_all_button = st.button("Maximize All")
 
-        # Apply button styles
+        # Add a new line for the "Show All Deals" dropdown
+        st.markdown("<br>", unsafe_allow_html=True)  # Adds a line break
+
+        # Create a new row for the "Show All Deals" dropdown
+        col1 = st.columns([1])[0]
+
+        with col1:
+            selected_deal = st.selectbox("", ['Show All Deals'] + deals_df['Regarding'].dropna().unique().tolist())
+
         # Apply button styles
         st.markdown(
             """
@@ -143,13 +150,14 @@ if uploaded_files and len(uploaded_files) == 2:
                 width: 100%;
             }
             div[data-baseweb="select"] > div {
-                background-color: #015CAB !important;
+                background-color: #000000 !important;
                 color: #ffffff !important;
             }
             </style>
             """,
             unsafe_allow_html=True
         )
+
 
         # Minimize/Maximize all tasks and appointments
         expander_states = {}
@@ -196,7 +204,7 @@ if uploaded_files and len(uploaded_files) == 2:
                 task_filter = "Show All"  # Default filter value
 
                 # Add a filter for tasks based on 'Status Reason' with counts in the dropdown label
-                task_filter_label = f"<strong style='font-size:18px; background-color: #e8f2fc;'>&nbsp;&nbsp;Tasks>>>&nbsp;In Progress: {in_progress_count}, Completed: {completed_count}, Not Started: {not_started_count}&nbsp;&nbsp;</strong>"
+                task_filter_label = f"<strong style='font-size:18px; background-color: #e8f2fc;'>&nbsp;&nbsp;Tasks&nbsp;>>>&nbsp;In Progress: {in_progress_count}, Completed: {completed_count}, Not Started: {not_started_count}&nbsp;&nbsp;</strong>"
                 st.markdown(task_filter_label, unsafe_allow_html=True)
 
                 # Create a row of buttons for filtering tasks with unique keys
