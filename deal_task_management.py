@@ -196,7 +196,7 @@ if uploaded_files and len(uploaded_files) == 2:
                 task_filter = "Show All"  # Default filter value
 
                 # Add a filter for tasks based on 'Status Reason' with counts in the dropdown label
-                task_filter_label = f"<strong style='font-size:18px; background-color: #e8f2fc;'>&nbsp;&nbsp;Tasks:&nbsp;In Progress: {in_progress_count}, Completed: {completed_count}, Not Started: {not_started_count}&nbsp;&nbsp;</strong>"
+                task_filter_label = f"<strong style='font-size:18px; background-color: #e8f2fc;'>&nbsp;&nbsp;Tasks>>>&nbsp;In Progress: {in_progress_count}, Completed: {completed_count}, Not Started: {not_started_count}&nbsp;&nbsp;</strong>"
                 st.markdown(task_filter_label, unsafe_allow_html=True)
 
                 # Create a row of buttons for filtering tasks with unique keys
