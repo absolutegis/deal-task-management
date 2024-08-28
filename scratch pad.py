@@ -171,6 +171,41 @@ if uploaded_files and len(uploaded_files) == 2:
             # Extract and clean appointments data
             appointments_df[['Start Time', 'End Time']] = appointments_df[['Start Time', 'End Time']].apply(lambda x: pd.to_datetime(x, errors='coerce').dt.date)
 
+            # Additional Filters at the Deal Level
+            st.sidebar.header("Filter Deals")
+
+            sub_market_filter = st.sidebar.multiselect(
+                "Filter by Sub-Market",
+                options=deals_df['Sub-Market'].unique(),
+                default=deals_df['Sub-Market'].unique()
+            )
+
+            deal_stage_filter = st.sidebar.multiselect(
+                "Filter by Deal Stage",
+                options=deals_df['Calculated Deal Stage'].unique(),
+                default=deals_df['Calculated Deal Stage'].unique()
+            )
+
+            # Apply Filters
+            filtered_deals_df = deals_df[
+                (deals_df['Sub-Market'].isin(sub_market_filter)) &
+                (deals_df['Calculated Deal Stage'].isin(deal_stage_filter))
+            ]
+
+            # Sorting Option
+            sort_by = st.sidebar.selectbox(
+                "Sort Deals by",
+                options=['GF Submittal Date', 'Projected Deal First Closing Date', 'Days to IP Expiration', 'Deal Homesite Total']
+            )
+            sort_order = st.sidebar.radio(
+                "Sort Order",
+                options=['Ascending', 'Descending']
+            )
+
+            ascending = sort_order == 'Ascending'
+
+            filtered_deals_df = filtered_deals_df.sort_values(by=sort_by, ascending=ascending)
+
             # Add buttons and deal selection at the top in a horizontal line
             col1, col2, col3 = st.columns([1, 1, 1])
 
@@ -186,7 +221,7 @@ if uploaded_files and len(uploaded_files) == 2:
             col1 = st.columns([1])[0]
 
             with col1:
-                selected_deal = st.selectbox("", ['Show All Deals'] + deals_df['Regarding'].dropna().unique().tolist())
+                selected_deal = st.selectbox("", ['Show All Deals'] + filtered_deals_df['Regarding'].dropna().unique().tolist())
 
             # Apply button styles
             st.markdown(
@@ -209,12 +244,12 @@ if uploaded_files and len(uploaded_files) == 2:
             # Minimize/Maximize all tasks and appointments
             expander_states = {}
             if minimize_all_button:
-                expander_states = {deal: False for deal in deals_df['Regarding']}
+                expander_states = {deal: False for deal in filtered_deals_df['Regarding']}
             if maximize_all_button:
-                expander_states = {deal: True for deal in deals_df['Regarding']}
+                expander_states = {deal: True for deal in filtered_deals_df['Regarding']}
 
-            # Loop through deals
-            for idx, deal in deals_df.iterrows():
+            # Loop through filtered deals only
+            for idx, deal in filtered_deals_df.iterrows():
                 deal_name = deal['Regarding']
 
                 # Skip deals if not selected
