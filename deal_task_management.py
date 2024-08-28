@@ -117,7 +117,7 @@ if uploaded_files and len(uploaded_files) == 2:
         col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
 
         with col1:
-            selected_deal = st.selectbox("", ['Show All'] + deals_df['Regarding'].dropna().unique().tolist())
+            selected_deal = st.selectbox("", ['Show All Deals'] + deals_df['Regarding'].dropna().unique().tolist())
         with col2:
             download_button_placeholder = st.empty()
             download_button_placeholder.download_button(
@@ -168,7 +168,7 @@ if uploaded_files and len(uploaded_files) == 2:
                 deal_name = deal['Regarding']
 
                 # Skip deals if not selected
-                if selected_deal != 'Show All' and deal_name != selected_deal:
+                if selected_deal != 'Show All Deals' and deal_name != selected_deal:
                     continue
 
                 st.subheader(f"Deal: {deal_name}")
