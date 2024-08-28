@@ -8,6 +8,9 @@ from datetime import datetime
 # Set the layout to wide
 st.set_page_config(layout="wide")
 
+# Create an anchor at the top of the page
+st.markdown('<a name="top"></a>', unsafe_allow_html=True)
+
 # Add a logo and subtext
 logo_path = "https://storage.googleapis.com/absolute_gis_public/Images/lennar_indy.jpg"  # Replace with your logo file name or URL
 st.image(logo_path, width=150)
@@ -113,19 +116,10 @@ if uploaded_files and len(uploaded_files) == 2:
         appointments_df[['Start Time', 'End Time']] = appointments_df[['Start Time', 'End Time']].apply(lambda x: pd.to_datetime(x, errors='coerce').dt.date)
 
         # Add buttons and deal selection at the top in a horizontal line
-        # Add buttons and deal selection at the top in a horizontal line
-        # Add buttons and deal selection at the top in a horizontal line
         col1, col2, col3 = st.columns([1, 1, 1])
 
         with col1:
             download_button_placeholder = st.empty()
-            download_button_placeholder.download_button(
-                label="Download Excel",
-                data=b'',
-                file_name="",
-                disabled=True,
-                key="download_excel"
-            )
         with col2:
             minimize_all_button = st.button("Minimize All")
         with col3:
@@ -158,7 +152,6 @@ if uploaded_files and len(uploaded_files) == 2:
             unsafe_allow_html=True
         )
 
-
         # Minimize/Maximize all tasks and appointments
         expander_states = {}
         if minimize_all_button:
@@ -179,7 +172,9 @@ if uploaded_files and len(uploaded_files) == 2:
                 if selected_deal != 'Show All Deals' and deal_name != selected_deal:
                     continue
 
-                st.subheader(f"Deal: {deal_name}")
+                # Add a 'Return to Top' link next to the deal name with a home emoji
+                return_to_top_link = f"<a href='#top' style='text-decoration: none; color: #015CAB;'>🏠</a>"
+                st.markdown(f"<h3>Deal: {deal_name} {return_to_top_link}</h3>", unsafe_allow_html=True)
 
                 # Display Deal Data
                 deal_data = deal.to_frame().T
@@ -190,7 +185,7 @@ if uploaded_files and len(uploaded_files) == 2:
                 current_row += len(deal_data) + 2  # Adjust row position
 
                 # Create a unique key for the task filter by combining the index and deal name
-                unique_key = f"{deal_name}_{idx}_task_filter".replace(" ", "_").replace("(", "").replace(")", "")
+                unique_key = f"{idx}_{deal_name}_task_filter".replace(" ", "_").replace("(", "").replace(")", "")
 
                 # Fetch and display related Tasks
                 filtered_tasks_df = tasks_df[tasks_df['Regarding'] == deal_name]
@@ -211,16 +206,16 @@ if uploaded_files and len(uploaded_files) == 2:
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
-                    if st.button("Show All Tasks", key=f"{deal_name}_show_all"):
+                    if st.button("Show All Tasks", key=f"{idx}_{deal_name}_show_all"):
                         task_filter = "Show All"
                 with col2:
-                    if st.button("In Progress", key=f"{deal_name}_in_progress"):
+                    if st.button("In Progress", key=f"{idx}_{deal_name}_in_progress"):
                         task_filter = "In Progress"
                 with col3:
-                    if st.button("Completed", key=f"{deal_name}_completed"):
+                    if st.button("Completed", key=f"{idx}_{deal_name}_completed"):
                         task_filter = "Completed"
                 with col4:
-                    if st.button("Not Started", key=f"{deal_name}_not_started"):
+                    if st.button("Not Started", key=f"{idx}_{deal_name}_not_started"):
                         task_filter = "Not Started"
 
                 # Filter the DataFrame based on the button clicked
@@ -237,11 +232,9 @@ if uploaded_files and len(uploaded_files) == 2:
                 # Set the maximum number of rows to display
                 max_display_rows = 5
 
-
                 # Calculate the height for the dataframe
                 row_height = 35  # Approximate row height in pixels
                 table_height = row_height * min(num_rows, max_display_rows) + 30  # Adjusting with a margin
-
 
                 # Fetch and display related Appointments
                 related_appointments = appointments_df[appointments_df['Regarding'] == deal_name].drop(columns=['Regarding'])
@@ -272,7 +265,6 @@ if uploaded_files and len(uploaded_files) == 2:
                         st.write("No related appointments found.")
                         current_row += 2  # Add spacing even if no appointments
 
-
                 # Add a more prominent separator row
                 st.markdown("<hr style='border: 4px solid #000;'>", unsafe_allow_html=True)  # Thicker horizontal line
                 current_row += 1  # Extra space between deals
@@ -286,16 +278,16 @@ if uploaded_files and len(uploaded_files) == 2:
             for i, col in enumerate(appointment_columns):  # Adjust for appointment columns
                 worksheet.set_column(i, i, 20)
 
-        # Render the download button
+        # Render the download button after generating the Excel file
         download_button_placeholder.download_button(
             label="Download Excel",
             data=buffer.getvalue(),
             file_name=f"deal_task_appointment_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            disabled=False
         )
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
 else:
     st.info("Please upload exactly two Excel files: one for Deals/Tasks and one for Appointments.")
-                       
