@@ -25,6 +25,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# Inject custom CSS for Gantt chart buttons via HTML
 # Inject custom CSS for buttons via HTML
 st.markdown(
     """
@@ -55,6 +56,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 # Function to clean up the column names by stripping out '(Regarding) (Deal)'
 def clean_column_names(columns):
@@ -197,11 +199,10 @@ if uploaded_files and len(uploaded_files) == 2:
             # Letters of Intent
             letters_of_intent_df = deals_df[
                 deals_df['GF Submittal Date'].isna()
-            ].sort_values(by=["Calculated Deal Stage", "Sub-Market"])
+            ]
 
             # Add buttons for Deal Filters with counts
-            # Add buttons for Deal Filters with counts
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3 = st.columns(3)
 
             with col1:
                 if st.button(f"Greenfolder Approved, Not Yet Closed ({len(greenfolder_approved_df)})"):
@@ -214,19 +215,13 @@ if uploaded_files and len(uploaded_files) == 2:
             with col3:
                 if st.button(f"Letters of Intent ({len(letters_of_intent_df)})"):
                     st.session_state['deal_filter'] = 'Letters of Intent'
-                    st.session_state['filtered_deals_df'] = letters_of_intent_df 
-            with col4:
-                total_deals_count = len(deals_df)
-                if st.button(f"All Deals ({total_deals_count})"):
-                    st.session_state.pop('filtered_deals_df', None)  # Remove the filtered deals to reset to all deals
-                    st.session_state.pop('deal_filter', None)  # Clear the deal filter state as well
+                    st.session_state['filtered_deals_df'] = letters_of_intent_df
 
             # Default to showing all deals if no button is clicked
             if 'filtered_deals_df' not in st.session_state:
                 st.session_state['filtered_deals_df'] = deals_df
 
             filtered_deals_df = st.session_state['filtered_deals_df']
-
 
             # Sorting UI/UX
             with st.expander("Sort Deals"):

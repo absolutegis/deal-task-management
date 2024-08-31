@@ -214,10 +214,10 @@ if uploaded_files and len(uploaded_files) == 2:
             with col3:
                 if st.button(f"Letters of Intent ({len(letters_of_intent_df)})"):
                     st.session_state['deal_filter'] = 'Letters of Intent'
-                    st.session_state['filtered_deals_df'] = letters_of_intent_df 
+                    st.session_state['filtered_deals_df'] = letters_of_intent_df
             with col4:
                 total_deals_count = len(deals_df)
-                if st.button(f"All Deals ({total_deals_count})"):
+                if st.button(f"Reset Filter ({total_deals_count})"):
                     st.session_state.pop('filtered_deals_df', None)  # Remove the filtered deals to reset to all deals
                     st.session_state.pop('deal_filter', None)  # Clear the deal filter state as well
 
