@@ -3,7 +3,7 @@ import streamlit as st
 import re
 from bs4 import BeautifulSoup
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.express as px
 
 # Set the layout to wide
@@ -73,102 +73,40 @@ def apply_conditional_formatting(styled_df):
     if styled_df.columns.duplicated().any():
         styled_df = styled_df.loc[:, ~styled_df.columns.duplicated()]
 
-    styled_df = styled_df.map(lambda val: 'background-color: rgba(255, 0, 0, 0.3)' if val == 'Overdue' else '', subset=['Status Reason', 'Due Date'])
-    styled_df = styled_df.map(lambda val: 'background-color: rgba(0, 128, 0, 0.3)' if val == 'In Progress' else '', subset=['Status Reason'])
-    styled_df = styled_df.map(lambda val: 'background-color: rgba(128, 128, 128, 0.3)' if val == 'Completed' else '', subset=['Status Reason'])
+    styled_df = styled_df.applymap(lambda val: 'background-color: rgba(255, 0, 0, 0.3)' if val == 'Overdue' else '', subset=['Status Reason', 'Due Date'])
+    styled_df = styled_df.applymap(lambda val: 'background-color: rgba(0, 128, 0, 0.3)' if val == 'In Progress' else '', subset=['Status Reason'])
+    styled_df = styled_df.applymap(lambda val: 'background-color: rgba(128, 128, 128, 0.3)' if val == 'Completed' else '', subset=['Status Reason'])
     return styled_df
 
+# Function to generate the Gantt chart
 def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
-    current_date = datetime.now().date()
-
-    # Define initial Gantt data structure with key dates
     gantt_data = {
-        'Task': [],
-        'Start': [],
-        'Finish': [],
-        'Status': [],
-        'Color': []
+        'Task': ['GF Submittal Date', 'Green Folder Meeting Date', 'IP Expiration Date', 'Projected Deal First Closing Date'],
+        'Start': [deal['GF Submittal Date'], deal['Green Folder Meeting Date'], deal['IP Expiration Date'], deal['Projected Deal First Closing Date']],
+        'Finish': [deal['Green Folder Meeting Date'], deal['IP Expiration Date'], deal['Projected Deal First Closing Date'], deal['Projected Deal First Closing Date']]
     }
 
-    # Adding key deal dates to the Gantt data
-    key_dates = {
-        'GF Submittal Date': deal['GF Submittal Date'],
-        'Green Folder Meeting Date': deal['Green Folder Meeting Date'],
-        'IP Expiration Date': deal['IP Expiration Date'],
-        'Projected Deal First Closing Date': deal['Projected Deal First Closing Date'],
-    }
-
-    # Handle missing key dates
-    for task_name, date in key_dates.items():
-        if pd.notna(date):  # Only add if the date is valid
-            gantt_data['Task'].append(task_name)
-            gantt_data['Start'].append(date)
-            gantt_data['Finish'].append(date + timedelta(days=1))  # Add a small delta for key dates
-            gantt_data['Status'].append('Key Date')
-            gantt_data['Color'].append('gray')
-
-    # Adding tasks data and handle missing start/finish dates
-    for _, task in filtered_tasks_df.iterrows():
-        start_date = task['Start Date'] if pd.notna(task['Start Date']) else current_date
-        finish_date = task['Due Date'] if pd.notna(task['Due Date']) else start_date + timedelta(days=1)
-
+    # Adding Tasks Start Date and Tasks Due Date
+    tasks_subset = filtered_tasks_df[['Subject', 'Start Date', 'Due Date']].dropna()
+    for _, task in tasks_subset.iterrows():
         gantt_data['Task'].append(task['Subject'])
-        gantt_data['Start'].append(start_date)
-        gantt_data['Finish'].append(finish_date)
-        gantt_data['Status'].append(task['Status Reason'])
-
-        # Determine color based on status and dates
-        if task['Status Reason'] == 'Completed':
-            gantt_data['Color'].append('gray')
-        elif task['Status Reason'] == 'In Progress':
-            if finish_date < current_date:
-                gantt_data['Color'].append('red')
-            elif current_date <= finish_date <= current_date + timedelta(days=5):
-                gantt_data['Color'].append('orange')
-            elif current_date + timedelta(days=5) < finish_date <= current_date + timedelta(days=15):
-                gantt_data['Color'].append('yellow')
-            else:
-                gantt_data['Color'].append('green')
-        else:
-            gantt_data['Color'].append('blue')  # Default color for any other status (if exists)
+        gantt_data['Start'].append(task['Start Date'])
+        gantt_data['Finish'].append(task['Due Date'])
 
     gantt_df = pd.DataFrame(gantt_data)
 
-    # Ensure that the Gantt chart has valid data to display
-    if not gantt_df.empty:
-        fig = px.timeline(
-            gantt_df,
-            x_start="Start",
-            x_end="Finish",
-            y="Task",
-            title=f"Gantt Chart for {deal_name}",
-            color="Color",  # Use the Color column for bar colors
-            color_discrete_map={
-                'gray': 'gray',
-                'green': 'green',
-                'yellow': 'yellow',
-                'orange': 'orange',
-                'red': 'red',
-                'blue': 'blue'
-            },
-            height=800  # Increase the height of the chart to accommodate more tasks
-        )
+    fig = px.timeline(
+        gantt_df,
+        x_start="Start",
+        x_end="Finish",
+        y="Task",
+        title=f"Gantt Chart for {deal_name}",
+        color="Task"
+    )
 
-        fig.update_yaxes(categoryorder="total ascending")
-
-        # Adjust the x-axis to ensure the chart starts from the current date and extends far enough
-        fig.update_layout(
-            xaxis=dict(
-                range=[current_date - timedelta(days=30), gantt_df['Finish'].max() + timedelta(days=30)],  # Extend x-axis range
-                tickformat="%b %d, %Y"  # Format the x-axis ticks for better readability
-            ),
-            showlegend=True  # Show legend to interpret colors
-        )
-
-        return fig
-    else:
-        st.warning(f"No valid data to display in the Gantt chart for {deal_name}.")
-        return None
+    fig.update_yaxes(categoryorder="total ascending")
+    fig.update_layout(showlegend=False)
+    return fig
 
 # Load the Excel files
 uploaded_files = st.file_uploader(
