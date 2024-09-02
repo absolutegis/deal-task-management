@@ -51,7 +51,6 @@ st.markdown(
         background-color: #FF5733 !important;
         color: white !important;
     }
-    
     </style>
     """,
     unsafe_allow_html=True
@@ -111,17 +110,16 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
     for _, task in filtered_tasks_df.iterrows():
         start_date = pd.to_datetime(task['Start Date'], errors='coerce') if pd.notna(task['Start Date']) else current_date
         finish_date = pd.to_datetime(task['Due Date'], errors='coerce') if pd.notna(task['Due Date']) else start_date + timedelta(days=1)
-        status_reason = task['Status Reason']
 
         gantt_data['Task'].append(task['Subject'])
         gantt_data['Start'].append(start_date)
         gantt_data['Finish'].append(finish_date)
-        gantt_data['Status'].append(status_reason)
+        gantt_data['Status'].append(task['Status Reason'])
 
         # Determine color based on status and dates
-        if status_reason == 'Completed':
+        if task['Status Reason'] == 'Completed':
             gantt_data['Color'].append('gray')
-        elif status_reason == 'In Progress':
+        elif task['Status Reason'] == 'In Progress':
             if finish_date < current_date:
                 gantt_data['Color'].append('red')
             elif current_date <= finish_date <= current_date + timedelta(days=5):
@@ -170,7 +168,6 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
     else:
         st.warning(f"No valid data to display in the Gantt chart for {deal_name}.")
         return None
-
 
 # Load the Excel files
 uploaded_files = st.file_uploader(
@@ -354,9 +351,7 @@ if uploaded_files and len(uploaded_files) == 2:
 
                 # Add a 'Return to Top' link next to the deal name with a home emoji
                 return_to_top_link = f"<a href='#top' style='text-decoration: none; color: #015CAB;'>🏠</a>"
-                go_to_download_link = f"<a href='#download' style='text-decoration: none; color: #015CAB;'>📥</a>"
-                st.markdown(f"<h3>{deal_name} {return_to_top_link} {go_to_download_link}</h3>", unsafe_allow_html=True)
-                #st.markdown(f"<h3>{deal_name} {return_to_top_link}</h3>", unsafe_allow_html=True) # Removed "Deal" from Deal Name Header
+                st.markdown(f"<h3>{deal_name} {return_to_top_link}</h3>", unsafe_allow_html=True) # Removed "Deal" from Deal Name Header
 
                 # Display Deal Data
                 deal_data = deal.to_frame().T
@@ -450,7 +445,6 @@ if uploaded_files and len(uploaded_files) == 2:
                 worksheet.set_column(i, i, 20)
 
         # Render the download button after all the writing is done
-        st.markdown('<a name="download"></a>', unsafe_allow_html=True)  # Anchor for download
         st.download_button(
             label="Download Excel",
             data=buffer.getvalue(),
