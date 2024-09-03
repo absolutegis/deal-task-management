@@ -323,13 +323,14 @@ if uploaded_files and len(uploaded_files) == 2:
             # Search Functionality using Dropdown with Search
             # Search Functionality using Dropdown with Search
             with st.expander("Search for Specific Deal"):
-                deal_names = ["Show All"] + filtered_deals_df['Regarding'].dropna().unique().tolist()
-                
+                deal_names = [""] + filtered_deals_df['Regarding'].dropna().unique().tolist()
+
                 selected_deal = st.selectbox("Select a Deal:", deal_names)
                 
                 # Filter the DataFrame based on the selected deal
-                if selected_deal != "Show All":
+                if selected_deal:
                     filtered_deals_df = filtered_deals_df[filtered_deals_df['Regarding'] == selected_deal]
+
 
             # Add buttons to minimize/maximize all tasks and appointments
             col1, col2, col3 = st.columns([1, 1, 1])
