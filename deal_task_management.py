@@ -89,11 +89,10 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
         'Start': [],
         'Finish': [],
         'Status': [],
-        'Color': [],
-        'Point': []  # For points on the bar (e.g., IP Expiration Date, GF Submittal Date)
+        'Color': []
     }
 
-    # Adding key contract dates to the Gantt data
+    # Adding key contract dates to the Gantt data (as bars, no points)
     contract_dates = {
         'Actual Contract Execution Date': pd.to_datetime(deal.get('Actual Contract Execution Date'), errors='coerce'),
         'IP Expiration Date': pd.to_datetime(deal.get('IP Expiration Date'), errors='coerce'),
@@ -105,10 +104,9 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
         gantt_data['Start'].append(contract_dates['Actual Contract Execution Date'])
         gantt_data['Finish'].append(contract_dates['Projected Deal First Closing'])
         gantt_data['Status'].append('Contract')
-        gantt_data['Color'].append('teal')
-        gantt_data['Point'].append(contract_dates['IP Expiration Date'])
+        gantt_data['Color'].append('teal')  # Contract bar color is teal
 
-    # Adding key Green Folder dates to the Gantt data
+    # Adding key Green Folder dates to the Gantt data (as bars, no points)
     green_folder_dates = {
         'GF Submittal Date': pd.to_datetime(deal.get('GF Submittal Date'), errors='coerce'),
         'Green Folder Meeting Date': pd.to_datetime(deal.get('Green Folder Meeting Date'), errors='coerce'),
@@ -123,27 +121,24 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
             color = 'magenta'
         
         gantt_data['Task'].append('Green Folder Dates')
-        gantt_data['Start'].append(current_date)  # Start from the current date
+        gantt_data['Start'].append(green_folder_dates['GF Submittal Date'])
         gantt_data['Finish'].append(green_folder_dates['Green Folder Meeting Date'])
         gantt_data['Status'].append('Green Folder')
         gantt_data['Color'].append(color)
-        gantt_data['Point'].append(green_folder_dates['GF Submittal Date'])
 
-    # Adding tasks data and handle missing start/finish dates
+    # Adding tasks data and handling missing start/finish dates
     for _, task in filtered_tasks_df.iterrows():
-        # Check if 'Task Category' is not blank (not NaN or empty string)
         if pd.notna(task['Task Category']) and task['Task Category'].strip():
-            start_date = pd.to_datetime(task['Start Date'], errors='coerce') if pd.notna(task['Start Date']) else current_date
-            finish_date = pd.to_datetime(task['Due Date'], errors='coerce') if pd.notna(task['Due Date']) else start_date + timedelta(days=1)
+            start_date = pd.to_datetime(task['Start Date'], errors='coerce') or current_date
+            finish_date = pd.to_datetime(task['Due Date'], errors='coerce') or start_date + timedelta(days=1)
             status_reason = task['Status Reason']
 
             gantt_data['Task'].append(task['Subject'])
             gantt_data['Start'].append(start_date)
             gantt_data['Finish'].append(finish_date)
             gantt_data['Status'].append(status_reason)
-            gantt_data['Point'].append(None)  # No specific point for tasks
 
-            # Determine color based on status and dates
+            # Apply color based on status and date logic
             if status_reason == 'Completed':
                 actual_end_date = pd.to_datetime(task.get('Actual End', finish_date), errors='coerce')
                 gantt_data['Finish'][-1] = actual_end_date
@@ -186,29 +181,6 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
         )
 
         fig.update_yaxes(categoryorder="total ascending")
-
-        # Add points to the chart (e.g., IP Expiration Date, GF Submittal Date)
-        for i, (task, point) in enumerate(zip(gantt_df['Task'], gantt_df['Point'])):
-            if pd.notna(point):
-                fig.add_shape(
-                    type="line",
-                    x0=point,
-                    y0=i - 0.4,
-                    x1=point,
-                    y1=i + 0.4,
-                    line=dict(color="black", width=2),
-                )
-
-                # Add a text label to mark the point (e.g., "GF Submittal Date")
-                fig.add_annotation(
-                    x=point,
-                    y=i,
-                    text=f"{task} Point",
-                    showarrow=True,
-                    arrowhead=2,
-                    ax=-10,  # Adjust the position of the label
-                    ay=-30,
-                )
 
         fig.update_layout(
             xaxis=dict(
@@ -530,6 +502,18 @@ if uploaded_files and len(uploaded_files) == 2:
             file_name=f"deal_task_appointment_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        # Excel icon URL (You can replace this URL with your own Excel icon)
+        excel_icon_url = "https://storage.googleapis.com/absolute_gis_public/Images/lennar%20dashboard%20title.jpg"
+        # Adding Excel icon next to Download button and rendering the button
+        st.markdown(
+            f"""
+            <br><br><div style="display: flex; align-items: center;">
+                <img src="{excel_icon_url}" width="500" style="margin-right: 10px;" />
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.markdown("<hr style='border: 4px solid #000;'>", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
