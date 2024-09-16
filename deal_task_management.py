@@ -69,118 +69,148 @@ def strip_html(text):
         return soup.get_text(separator=" ", strip=True)
     return text
 
-# Function to apply conditional formatting with semi-transparency
+# Function to apply conditional formatting with semi-transparency for tasks
 def apply_conditional_formatting(styled_df):
+    current_date = pd.Timestamp(datetime.now().date())
+
     # Ensure unique columns before applying styling
     if styled_df.columns.duplicated().any():
         styled_df = styled_df.loc[:, ~styled_df.columns.duplicated()]
 
-    styled_df = styled_df.map(lambda val: 'background-color: rgba(255, 0, 0, 0.3)' if val == 'Overdue' else '', subset=['Status Reason', 'Due Date'])
-    styled_df = styled_df.map(lambda val: 'background-color: rgba(0, 128, 0, 0.3)' if val == 'In Progress' else '', subset=['Status Reason'])
-    styled_df = styled_df.map(lambda val: 'background-color: rgba(128, 128, 128, 0.3)' if val == 'Completed' else '', subset=['Status Reason'])
+    # Apply color based on the "Due Date" column
+    def due_date_color(val):
+        due_date = pd.to_datetime(val, errors='coerce')
+        if pd.isna(due_date):
+            return ''  # No coloring if the due date is not available
+        if current_date > due_date:
+            return 'background-color: rgba(255, 0, 0, 0.3)'  # Red for overdue
+        elif current_date <= due_date <= current_date + timedelta(days=5):
+            return 'background-color: rgba(255, 165, 0, 0.3)'  # Orange for due within 5 days
+        elif current_date + timedelta(days=5) < due_date <= current_date + timedelta(days=15):
+            return 'background-color: rgba(255, 255, 0, 0.3)'  # Yellow for due within 15 days
+        else:
+            return ''  # No coloring if not overdue or due soon
+
+    # Apply color to "Due Date" column using the due_date_color function
+    styled_df = styled_df.applymap(due_date_color, subset=['Due Date'])
+
+    # Additional coloring for "Status Reason" column (e.g., Completed, In Progress)
+    styled_df = styled_df.applymap(
+        lambda val: 'background-color: rgba(128, 128, 128, 0.3)' if val == 'Completed' else '', subset=['Status Reason']
+    )
+    styled_df = styled_df.applymap(
+        lambda val: 'background-color: rgba(0, 128, 0, 0.3)' if val == 'In Progress' else '', subset=['Status Reason']
+    )
+
     return styled_df
 
+
+# Gantt chart generation function
+# Gantt chart generation function
 def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
     current_date = pd.Timestamp(datetime.now().date())
 
-    # Define initial Gantt data structure with key dates
     gantt_data = {
         'Task': [],
         'Start': [],
         'Finish': [],
-        'Status': [],
-        'Color': []
+        'Status': [],  # This will hold the labels that map to the legend
+        'Color': [],   # We can still keep Color, but Status will now drive the legend
     }
 
-    # Adding key contract dates to the Gantt data (as bars, no points)
-    contract_dates = {
-        'Actual Contract Execution Date': pd.to_datetime(deal.get('Actual Contract Execution Date'), errors='coerce'),
-        'IP Expiration Date': pd.to_datetime(deal.get('IP Expiration Date'), errors='coerce'),
-        'Projected Deal First Closing': pd.to_datetime(deal.get('Projected Deal First Closing'), errors='coerce'),
-    }
+    # Contract Dates (Teal bar with IP Expiration as a hash mark)
+    contract_start = pd.to_datetime(deal.get('Actual Contract Execution Date'), errors='coerce')
+    contract_end = pd.to_datetime(deal.get('Projected Deal First Closing Date'), errors='coerce')
+    ip_expiration = pd.to_datetime(deal.get('IP Expiration Date'), errors='coerce')
 
-    if pd.notna(contract_dates['Actual Contract Execution Date']) and pd.notna(contract_dates['Projected Deal First Closing']):
+    # Ensure that contract dates are displayed at the top
+    if pd.notna(contract_start) and pd.notna(contract_end):
         gantt_data['Task'].append('Contract Dates')
-        gantt_data['Start'].append(contract_dates['Actual Contract Execution Date'])
-        gantt_data['Finish'].append(contract_dates['Projected Deal First Closing'])
+        gantt_data['Start'].append(contract_start)
+        gantt_data['Finish'].append(contract_end)
         gantt_data['Status'].append('Contract')
-        gantt_data['Color'].append('teal')  # Contract bar color is teal
+        gantt_data['Color'].append('teal')
 
-    # Adding key Green Folder dates to the Gantt data (as bars, no points)
-    green_folder_dates = {
-        'GF Submittal Date': pd.to_datetime(deal.get('GF Submittal Date'), errors='coerce'),
-        'Green Folder Meeting Date': pd.to_datetime(deal.get('Green Folder Meeting Date'), errors='coerce'),
-        'CIC Final Approval Date': pd.to_datetime(deal.get('CIC Final Approval Date'), errors='coerce'),
-    }
+    # Add "Actual Contract Execution Date" as a separate row
+    if pd.notna(contract_start):
+        gantt_data['Task'].append('Actual Contract Execution Date')
+        gantt_data['Start'].append(contract_start)
+        gantt_data['Finish'].append(contract_start)  # Start and finish on the same day
+        gantt_data['Status'].append('Actual Contract Execution')
+        gantt_data['Color'].append('blue')
 
-    if pd.notna(green_folder_dates['GF Submittal Date']) and pd.notna(green_folder_dates['Green Folder Meeting Date']):
-        color = 'purple'
-        if pd.notna(green_folder_dates['CIC Final Approval Date']):
-            color = 'gray'
-        elif current_date > green_folder_dates['Green Folder Meeting Date'] and pd.isna(green_folder_dates['CIC Final Approval Date']):
-            color = 'magenta'
-        
+    # Green Folder Dates (Purple bar)
+    green_start = pd.to_datetime(deal.get('GF Submittal Date'), errors='coerce')
+    green_end = pd.to_datetime(deal.get('Green Folder Meeting Date'), errors='coerce')
+
+    if pd.notna(green_start) and pd.notna(green_end):
         gantt_data['Task'].append('Green Folder Dates')
-        gantt_data['Start'].append(green_folder_dates['GF Submittal Date'])
-        gantt_data['Finish'].append(green_folder_dates['Green Folder Meeting Date'])
+        gantt_data['Start'].append(green_start)
+        gantt_data['Finish'].append(green_end)
         gantt_data['Status'].append('Green Folder')
-        gantt_data['Color'].append(color)
+        gantt_data['Color'].append('purple')
 
-    # Adding tasks data and handling missing start/finish dates
+    # Adding task data with conditional coloring based on status and dates
     for _, task in filtered_tasks_df.iterrows():
-        if pd.notna(task['Task Category']) and task['Task Category'].strip():
-            start_date = pd.to_datetime(task['Start Date'], errors='coerce') or current_date
-            finish_date = pd.to_datetime(task['Due Date'], errors='coerce') or start_date + timedelta(days=1)
-            status_reason = task['Status Reason']
+        start_date = pd.to_datetime(task['Start Date'], errors='coerce') or current_date
+        due_date = pd.to_datetime(task['Due Date'], errors='coerce') or start_date + timedelta(days=1)
+        status = task['Status Reason']
 
-            gantt_data['Task'].append(task['Subject'])
-            gantt_data['Start'].append(start_date)
-            gantt_data['Finish'].append(finish_date)
-            gantt_data['Status'].append(status_reason)
+        gantt_data['Task'].append(task['Subject'])
+        gantt_data['Start'].append(start_date)
+        gantt_data['Finish'].append(due_date)
+        gantt_data['Status'].append(status)
 
-            # Apply color based on status and date logic
-            if status_reason == 'Completed':
-                actual_end_date = pd.to_datetime(task.get('Actual End', finish_date), errors='coerce')
-                gantt_data['Finish'][-1] = actual_end_date
-                gantt_data['Color'].append('gray')
-            elif status_reason == 'In Progress':
-                if finish_date < current_date:
-                    gantt_data['Color'].append('red')
-                elif current_date <= finish_date <= current_date + timedelta(days=5):
-                    gantt_data['Color'].append('orange')
-                elif current_date + timedelta(days=5) < finish_date <= current_date + timedelta(days=15):
-                    gantt_data['Color'].append('yellow')
-                else:
-                    gantt_data['Color'].append('green')
+        # Apply color based on status and proximity to the due date
+        if status == 'Completed':
+            actual_end = pd.to_datetime(task.get('Actual End', due_date), errors='coerce')
+            gantt_data['Finish'][-1] = actual_end
+            gantt_data['Color'].append('gray')
+        elif status == 'In Progress':
+            if current_date > due_date:
+                gantt_data['Color'].append('red')  # Overdue
+                gantt_data['Status'][-1] = 'Overdue'
+            elif current_date <= due_date <= current_date + timedelta(days=5):
+                gantt_data['Color'].append('orange')  # Due in 5 days
+                gantt_data['Status'][-1] = 'Due Soon (5 days)'
+            elif current_date + timedelta(days=5) < due_date <= current_date + timedelta(days=15):
+                gantt_data['Color'].append('yellow')  # Due in 15 days
+                gantt_data['Status'][-1] = 'Due Soon (15 days)'
             else:
-                gantt_data['Color'].append('blue')  # Default color for other statuses
+                gantt_data['Color'].append('green')  # In progress
+        else:
+            gantt_data['Color'].append('blue')  # Default for other statuses
 
     gantt_df = pd.DataFrame(gantt_data)
 
-    # Ensure that the Gantt chart has valid data to display
     if not gantt_df.empty:
+        # Define a meaningful mapping between color and status
+        color_discrete_map = {
+            'Contract': 'teal',
+            'Actual Contract Execution': 'blue',
+            'Green Folder': 'purple',
+            'Completed': 'gray',
+            'Overdue': 'red',
+            'Due Soon (5 days)': 'orange',
+            'Due Soon (15 days)': 'yellow',
+            'In Progress': 'green'
+        }
+
+        # Move Contract Dates and Green Folder Dates to the top
         fig = px.timeline(
             gantt_df,
             x_start="Start",
             x_end="Finish",
             y="Task",
             title=f"Gantt Chart for {deal_name}",
-            color="Color",
-            color_discrete_map={
-                'gray': 'gray',
-                'green': 'green',
-                'yellow': 'yellow',
-                'orange': 'orange',
-                'red': 'red',
-                'teal': 'teal',
-                'purple': 'purple',
-                'magenta': 'magenta',
-                'blue': 'blue'
-            },
+            color="Status",  # Use Status for legend
+            category_orders={'Task': ['Contract Dates', 'Green Folder Dates', 'Actual Contract Execution Date'] + gantt_df['Task'].tolist()},
+            color_discrete_map=color_discrete_map,  # Apply the updated color-to-label mapping
             height=800
         )
 
-        fig.update_yaxes(categoryorder="total ascending")
+        # Ensure ordering for the y-axis
+        fig.update_yaxes(categoryorder="array", categoryarray=["Contract Dates", "Green Folder Dates", "Actual Contract Execution Date"])
 
         fig.update_layout(
             xaxis=dict(
@@ -190,10 +220,15 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
             showlegend=True
         )
 
+        # Add vertical line (hash mark) for IP Expiration Date
+        if pd.notna(ip_expiration):
+            fig.add_vline(x=ip_expiration, line_dash="dash", line_color="black")
+
         return fig
     else:
         st.warning(f"No valid data to display in the Gantt chart for {deal_name}.")
         return None
+
 
 # Load the Excel files
 uploaded_files = st.file_uploader(
@@ -229,6 +264,10 @@ if uploaded_files and len(uploaded_files) == 2:
                 st.error("Could not identify the Appointments file. Please ensure it contains 'Subject' and 'Start Time' columns.")
                 st.stop()
 
+            # Nice to show the cleaned columns. Debug statement written at top of screen. 
+            # Debugging: Print the cleaned columns to verify "Actual Contract Execution Date" exists
+            # st.write("Cleaned columns in deals_tasks_df:", deals_tasks_df.columns)
+
             # Clean 'Description' field in appointments
             if 'Description' in appointments_df.columns:
                 appointments_df['Description'] = appointments_df['Description'].apply(strip_html)
@@ -244,14 +283,33 @@ if uploaded_files and len(uploaded_files) == 2:
                 'Projected Deal First Closing Date', 'Deal Homesite Total',
                 'Homesite Size Description', 'Acquisition Type',
                 'Primary Seller Company', 'Product Type Description',
-                'CIC Final Approval Date'
+                'CIC Final Approval Date', 'Actual Contract Execution Date'
             ]
 
             task_columns = [
                 'Subject', 'Owner', 'Start Date', 'Due Date', 'Actual End',
                 'Status Reason', 'Vendor Assigned', 'Task Category', 
-                'Modified On', 'Comment'  # Added "Actual End" field
+                'Modified On', 'Comment'  
             ]
+
+            # Extract deals data
+            deals_df = deals_tasks_df[deal_columns].drop_duplicates().reset_index(drop=True)
+
+            # Debug statement for sample data - written at top of screen
+            # Ensure "Actual Contract Execution Date" is loaded
+            # st.write("Sample of deals_df (checking for 'Actual Contract Execution Date'):", deals_df.head())
+
+            # Handle non-finite values in 'Days to IP Expiration'
+            deals_df['Days to IP Expiration'] = deals_df['Days to IP Expiration'].fillna(0).round().astype(int)
+            
+            # Convert date fields to datetime and extract only the date
+            date_columns = ['GF Submittal Date', 'Green Folder Meeting Date', 'IP Expiration Date', 'Projected Deal First Closing Date', 'CIC Final Approval Date', 'Actual Contract Execution Date']
+            #deals_df[date_columns] = deals_df[date_columns].apply(lambda x: pd.to_datetime(x, errors='coerce').dt.strftime('%m/%d/%Y'))
+            # Convert all date columns and remove time component
+            for col in date_columns:
+                deals_df[col] = pd.to_datetime(deals_df[col], errors='coerce').dt.strftime('%m/%d/%Y')
+
+            # Other code for tasks, appointments, and filtering...
 
             appointment_columns = [
                 'Subject', 'Regarding', 'Owner', 'Status', 'Start Time',
@@ -265,7 +323,7 @@ if uploaded_files and len(uploaded_files) == 2:
             deals_df['Days to IP Expiration'] = deals_df['Days to IP Expiration'].fillna(0).round().astype(int)
             
             # Convert date fields to datetime and extract only the date
-            date_columns = ['GF Submittal Date', 'Green Folder Meeting Date', 'IP Expiration Date', 'Projected Deal First Closing Date', 'CIC Final Approval Date']
+            date_columns = ['GF Submittal Date', 'Green Folder Meeting Date', 'IP Expiration Date', 'Projected Deal First Closing Date', 'CIC Final Approval Date', 'Actual Contract Execution Date']
             deals_df[date_columns] = deals_df[date_columns].apply(lambda x: pd.to_datetime(x, errors='coerce').dt.strftime('%m/%d/%Y'))
 
             # Extract tasks data
