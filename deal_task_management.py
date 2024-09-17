@@ -69,38 +69,76 @@ def strip_html(text):
         return soup.get_text(separator=" ", strip=True)
     return text
 
+# Function to apply conditional formatting with semi-transparency for tasks 
 # Function to apply conditional formatting with semi-transparency for tasks
-def apply_conditional_formatting(styled_df):
+def apply_conditional_formatting(df):
     current_date = pd.Timestamp(datetime.now().date())
 
     # Ensure unique columns before applying styling
-    if styled_df.columns.duplicated().any():
-        styled_df = styled_df.loc[:, ~styled_df.columns.duplicated()]
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
 
-    # Apply color based on the "Due Date" column
-    def due_date_color(val):
-        due_date = pd.to_datetime(val, errors='coerce')
-        if pd.isna(due_date):
-            return ''  # No coloring if the due date is not available
-        if current_date > due_date:
-            return 'background-color: rgba(255, 0, 0, 0.3)'  # Red for overdue
-        elif current_date <= due_date <= current_date + timedelta(days=5):
-            return 'background-color: rgba(255, 165, 0, 0.3)'  # Orange for due within 5 days
-        elif current_date + timedelta(days=5) < due_date <= current_date + timedelta(days=15):
-            return 'background-color: rgba(255, 255, 0, 0.3)'  # Yellow for due within 15 days
-        else:
-            return ''  # No coloring if not overdue or due soon
+    # Function to style each row based on Due Date and Status Reason
+    def due_date_color(row):
+        due_date = pd.to_datetime(row['Due Date'], errors='coerce')
+        status_reason = row['Status Reason']
 
-    # Apply color to "Due Date" column using the due_date_color function
-    styled_df = styled_df.applymap(due_date_color, subset=['Due Date'])
+        # Default to no coloring for the entire row
+        style = [''] * len(row)
 
-    # Additional coloring for "Status Reason" column (e.g., Completed, In Progress)
+        # Apply colors only if the Status is not 'Completed'
+        if status_reason != 'Completed':
+            if pd.isna(due_date):
+                return style  # No coloring if the due date is not available
+            if current_date > due_date:
+                style[df.columns.get_loc('Due Date')] = 'background-color: rgba(255, 0, 0, 0.3)'  # Red for overdue
+            elif current_date <= due_date <= current_date + timedelta(days=5):
+                style[df.columns.get_loc('Due Date')] = 'background-color: rgba(255, 165, 0, 0.3)'  # Orange for due within 5 days
+            elif current_date + timedelta(days=5) < due_date <= current_date + timedelta(days=15):
+                style[df.columns.get_loc('Due Date')] = 'background-color: rgba(255, 255, 0, 0.3)'  # Yellow for due within 15 days
+
+        return style
+
+    # Apply styles to the DataFrame using .apply for row-wise operations
+    styled_df = df.style.apply(due_date_color, axis=1)
+
+    # Apply additional cell coloring for the "Status Reason" column (Completed, In Progress)
     styled_df = styled_df.applymap(
-        lambda val: 'background-color: rgba(128, 128, 128, 0.3)' if val == 'Completed' else '', subset=['Status Reason']
+        lambda val: 'background-color: rgba(128, 128, 128, 0.3)' if val == 'Completed' else '',
+        subset=['Status Reason']
+    ).applymap(
+        lambda val: 'background-color: rgba(0, 128, 0, 0.3)' if val == 'In Progress' else '',
+        subset=['Status Reason']
     )
-    styled_df = styled_df.applymap(
-        lambda val: 'background-color: rgba(0, 128, 0, 0.3)' if val == 'In Progress' else '', subset=['Status Reason']
-    )
+
+    return styled_df
+
+# Function to apply conditional formatting to appointments based on End Time
+def apply_appointment_formatting(df):
+    current_date = pd.Timestamp(datetime.now().date())
+
+    # Function to style each row based on End Time
+    def end_time_color(row):
+        end_time = pd.to_datetime(row['End Time'], errors='coerce')
+
+        # Default to no coloring for the entire row
+        style = [''] * len(row)
+
+        if pd.isna(end_time):
+            return style  # No coloring if the end time is not available
+
+        # Apply colors based on proximity to the end time
+        if current_date > end_time:
+            style[df.columns.get_loc('End Time')] = 'background-color: rgba(128, 128, 128, 0.3)'  # Gray for past end time
+        elif current_date <= end_time <= current_date + timedelta(days=5):
+            style[df.columns.get_loc('End Time')] = 'background-color: rgba(255, 165, 0, 0.3)'  # Orange for within 5 days
+        elif current_date + timedelta(days=5) < end_time <= current_date + timedelta(days=15):
+            style[df.columns.get_loc('End Time')] = 'background-color: rgba(255, 255, 0, 0.3)'  # Yellow for within 15 days
+
+        return style
+
+    # Apply styles to the DataFrame using .apply for row-wise operations
+    styled_df = df.style.apply(end_time_color, axis=1)
 
     return styled_df
 
@@ -116,30 +154,24 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
         'Finish': [],
         'Status': [],  # This will hold the labels that map to the legend
         'Color': [],   # We can still keep Color, but Status will now drive the legend
+        'Order': []    # New column to control the order of tasks in the chart
     }
 
-    # Contract Dates (Teal bar with IP Expiration as a hash mark)
+    # Contract Dates (now with Blue color)
     contract_start = pd.to_datetime(deal.get('Actual Contract Execution Date'), errors='coerce')
     contract_end = pd.to_datetime(deal.get('Projected Deal First Closing Date'), errors='coerce')
     ip_expiration = pd.to_datetime(deal.get('IP Expiration Date'), errors='coerce')
 
-    # Ensure that contract dates are displayed at the top
+    # Add "Contract Dates" to the data (Order = 1 to ensure it comes first)
     if pd.notna(contract_start) and pd.notna(contract_end):
         gantt_data['Task'].append('Contract Dates')
         gantt_data['Start'].append(contract_start)
         gantt_data['Finish'].append(contract_end)
         gantt_data['Status'].append('Contract')
-        gantt_data['Color'].append('teal')
+        gantt_data['Color'].append('blue')  # Change color to blue
+        gantt_data['Order'].append(1)  # Force to appear at the top
 
-    # Add "Actual Contract Execution Date" as a separate row
-    if pd.notna(contract_start):
-        gantt_data['Task'].append('Actual Contract Execution Date')
-        gantt_data['Start'].append(contract_start)
-        gantt_data['Finish'].append(contract_start)  # Start and finish on the same day
-        gantt_data['Status'].append('Actual Contract Execution')
-        gantt_data['Color'].append('blue')
-
-    # Green Folder Dates (Purple bar)
+    # Add "Green Folder Dates" to the data (Order = 2 to ensure it comes second)
     green_start = pd.to_datetime(deal.get('GF Submittal Date'), errors='coerce')
     green_end = pd.to_datetime(deal.get('Green Folder Meeting Date'), errors='coerce')
 
@@ -148,9 +180,11 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
         gantt_data['Start'].append(green_start)
         gantt_data['Finish'].append(green_end)
         gantt_data['Status'].append('Green Folder')
-        gantt_data['Color'].append('purple')
+        gantt_data['Color'].append('purple')  # Keep purple
+        gantt_data['Order'].append(2)  # Force to appear second
 
     # Adding task data with conditional coloring based on status and dates
+    task_order = 3  # Start ordering other tasks after Contract and Green Folder Dates
     for _, task in filtered_tasks_df.iterrows():
         start_date = pd.to_datetime(task['Start Date'], errors='coerce') or current_date
         due_date = pd.to_datetime(task['Due Date'], errors='coerce') or start_date + timedelta(days=1)
@@ -160,6 +194,8 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
         gantt_data['Start'].append(start_date)
         gantt_data['Finish'].append(due_date)
         gantt_data['Status'].append(status)
+        gantt_data['Order'].append(task_order)
+        task_order += 1  # Increment order for each task
 
         # Apply color based on status and proximity to the due date
         if status == 'Completed':
@@ -178,6 +214,8 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
                 gantt_data['Status'][-1] = 'Due Soon (15 days)'
             else:
                 gantt_data['Color'].append('green')  # In progress
+        elif status == 'Not Started':
+            gantt_data['Color'].append('teal')  # Change to teal for 'Not Started'
         else:
             gantt_data['Color'].append('blue')  # Default for other statuses
 
@@ -186,32 +224,32 @@ def generate_gantt_chart(deal_name, deal, filtered_tasks_df):
     if not gantt_df.empty:
         # Define a meaningful mapping between color and status
         color_discrete_map = {
-            'Contract': 'teal',
-            'Actual Contract Execution': 'blue',
+            'Contract': 'blue',  # Contract Dates now blue
             'Green Folder': 'purple',
             'Completed': 'gray',
             'Overdue': 'red',
             'Due Soon (5 days)': 'orange',
             'Due Soon (15 days)': 'yellow',
-            'In Progress': 'green'
+            'In Progress': 'green',
+            'Not Started': 'teal'  # Change Not Started to Teal
         }
 
-        # Move Contract Dates and Green Folder Dates to the top
+        # Plot the Gantt chart using the Order column to control the order
         fig = px.timeline(
-            gantt_df,
+            gantt_df.sort_values(by='Order'),  # Sort by the Order column
             x_start="Start",
             x_end="Finish",
             y="Task",
             title=f"Gantt Chart for {deal_name}",
             color="Status",  # Use Status for legend
-            category_orders={'Task': ['Contract Dates', 'Green Folder Dates', 'Actual Contract Execution Date'] + gantt_df['Task'].tolist()},
             color_discrete_map=color_discrete_map,  # Apply the updated color-to-label mapping
             height=800
         )
 
-        # Ensure ordering for the y-axis
-        fig.update_yaxes(categoryorder="array", categoryarray=["Contract Dates", "Green Folder Dates", "Actual Contract Execution Date"])
+        # Ensure the correct ordering for the y-axis
+        fig.update_yaxes(categoryorder="array", categoryarray=gantt_df.sort_values(by='Order')['Task'].tolist())
 
+        # Control the date range display (30 days before and after)
         fig.update_layout(
             xaxis=dict(
                 range=[current_date - timedelta(days=30), gantt_df['Finish'].max() + timedelta(days=30)],
@@ -374,8 +412,9 @@ if uploaded_files and len(uploaded_files) == 2:
 
             # Letters of Intent
             letters_of_intent_df = deals_df[
-                deals_df['GF Submittal Date'].isna()
+                (deals_df['Calculated Deal Stage'].isin(['LOI', 'Not under LOI']))
             ].sort_values(by=["Calculated Deal Stage", "Sub-Market"])
+
 
             # Adjust columns to decrease space between buttons by using narrower column ratios
             col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([0.1, 2.5, 1.8, 1.5, 1.1, 1.5, 1.5, 1.5])
@@ -431,6 +470,9 @@ if uploaded_files and len(uploaded_files) == 2:
                     filtered_deals_df = filtered_deals_df.sort_values(by=sort_column, ascending=(sort_order == "Ascending"))
                 else:
                     filtered_deals_df = filtered_deals_df.sort_values(by=sort_column, ascending=(sort_order == "Ascending"))
+
+            # Apply secondary alphabetical sorting by 'Regarding' column
+            filtered_deals_df = filtered_deals_df.sort_values(by='Regarding', ascending=True)
 
             # After sorting, format the date columns for display
             # Only apply formatting to columns that are datetime
@@ -524,7 +566,8 @@ if uploaded_files and len(uploaded_files) == 2:
                 # Display the tasks in an expander
                 with st.expander(expander_label, expanded=expander_states.get(deal_name, False)):
                     if not filtered_tasks_df.empty:
-                        styled_tasks = apply_conditional_formatting(filtered_tasks_df.drop(columns=['Regarding']).style)
+                        # Pass the DataFrame directly without .style
+                        styled_tasks = apply_conditional_formatting(filtered_tasks_df.drop(columns=['Regarding']))
                         st.dataframe(styled_tasks)  # Let Streamlit automatically determine the height
                         # Write Tasks Data to Excel
                         filtered_tasks_df.drop(columns=['Regarding']).to_excel(writer, startrow=current_row, index=False, header=True, sheet_name='Data')
@@ -539,10 +582,11 @@ if uploaded_files and len(uploaded_files) == 2:
                 # Calculate the number of related appointments
                 appointment_count = len(related_appointments)
 
-                # Display the appointments in an expander
+                # Display related appointments in the expander with conditional formatting
                 with st.expander(f"Related Appointments ({appointment_count})", expanded=expander_states.get(deal_name, False)):
                     if not related_appointments.empty:
-                        st.dataframe(related_appointments)  # Let Streamlit automatically determine the height
+                        styled_appointments = apply_appointment_formatting(related_appointments)
+                        st.dataframe(styled_appointments)
                         # Write Appointments Data to Excel
                         related_appointments.to_excel(writer, startrow=current_row, index=False, header=True, sheet_name='Data')
                         current_row += len(related_appointments) + 2
