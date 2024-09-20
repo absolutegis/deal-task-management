@@ -276,31 +276,50 @@ uploaded_files = st.file_uploader(
     help="Upload two Excel files: one for Deals/Tasks and one for Appointments"
 )
 
-if uploaded_files and len(uploaded_files) == 2:
+# Load the Excel files
+uploaded_files = st.file_uploader(
+    "Choose Excel files (Deals/Tasks and optionally Appointments)",
+    type="xlsx",
+    accept_multiple_files=True,
+    help="Upload one or two Excel files: one for Deals/Tasks and optionally one for Appointments"
+)
+
+# Initialize Excel writer
+buffer = BytesIO()
+
+if uploaded_files:
     try:
-        # Initialize Excel writer
-        buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             current_row = 0  # Initialize starting row for Excel
 
-            # Read the uploaded files into dataframes
-            df1 = pd.read_excel(uploaded_files[0])
-            df2 = pd.read_excel(uploaded_files[1])
+            # Check how many files are uploaded and handle accordingly
+            if len(uploaded_files) == 1:
+                # Assume only Deals/Tasks file is uploaded
+                deals_tasks_df = pd.read_excel(uploaded_files[0])
+                appointments_df = pd.DataFrame()  # Empty appointments DataFrame
+            elif len(uploaded_files) == 2:
+                # Two files uploaded: Deals/Tasks and Appointments
+                df1 = pd.read_excel(uploaded_files[0])
+                df2 = pd.read_excel(uploaded_files[1])
 
-            # Clean the column names
-            df1.columns = clean_column_names(df1.columns)
-            df2.columns = clean_column_names(df2.columns)
+                # Clean the column names
+                df1.columns = clean_column_names(df1.columns)
+                df2.columns = clean_column_names(df2.columns)
 
-            # Identify which dataframe is appointments based on specific columns
-            if {'Subject', 'Start Time'}.issubset(df1.columns):
-                appointments_df = df1.copy()
-                deals_tasks_df = df2.copy()
-            elif {'Subject', 'Start Time'}.issubset(df2.columns):
-                appointments_df = df2.copy()
-                deals_tasks_df = df1.copy()
+                # Identify which dataframe is appointments based on specific columns
+                if {'Subject', 'Start Time'}.issubset(df1.columns):
+                    appointments_df = df1.copy()
+                    deals_tasks_df = df2.copy()
+                elif {'Subject', 'Start Time'}.issubset(df2.columns):
+                    appointments_df = df2.copy()
+                    deals_tasks_df = df1.copy()
+                else:
+                    st.error("Could not identify the Appointments file. Please ensure it contains 'Subject' and 'Start Time' columns.")
+                    st.stop()
             else:
-                st.error("Could not identify the Appointments file. Please ensure it contains 'Subject' and 'Start Time' columns.")
+                st.error("Please upload only one or two files.")
                 st.stop()
+
 
             # Nice to show the cleaned columns. Debug statement written at top of screen. 
             # Debugging: Print the cleaned columns to verify "Actual Contract Execution Date" exists
@@ -410,15 +429,15 @@ if uploaded_files and len(uploaded_files) == 2:
                 (deals_df['CIC Final Approval Date'].isna())
             ]
 
-            # Letters of Intent with sorting by Calculated Deal Stage and Sub-Market
+            # Letters of Intent
             letters_of_intent_df = deals_df[
                 (deals_df['Calculated Deal Stage'].isin(['LOI', 'Not under LOI']))
-            ]
+            ].sort_values(by=["Calculated Deal Stage", "Sub-Market"])
+
 
             # Adjust columns to decrease space between buttons by using narrower column ratios
             col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([0.1, 2.5, 1.8, 1.5, 1.1, 1.5, 1.5, 1.5])
 
-            # Handle button clicks for filtering
             with col2:
                 if st.button(f"Greenfolder Approved, Not Yet Closed ({len(greenfolder_approved_df)})"):
                     st.session_state['deal_filter'] = 'Greenfolder Approved, Not Yet Closed'
@@ -465,13 +484,17 @@ if uploaded_files and len(uploaded_files) == 2:
                     horizontal=True
                 )
 
-                # Apply sorting by user's choice
-                filtered_deals_df = filtered_deals_df.sort_values(
-                    by=[sort_column, 'Regarding'],  # Multi-level sorting
-                    ascending=[(sort_order == "Ascending"), True]  # Regarding is always ascending
-                )
+                # Sort by datetime fields properly before formatting them as strings
+                if sort_column in date_columns:
+                    filtered_deals_df = filtered_deals_df.sort_values(by=sort_column, ascending=(sort_order == "Ascending"))
+                else:
+                    filtered_deals_df = filtered_deals_df.sort_values(by=sort_column, ascending=(sort_order == "Ascending"))
+
+            # Apply secondary alphabetical sorting by 'Regarding' column
+            filtered_deals_df = filtered_deals_df.sort_values(by='Regarding', ascending=True)
 
             # After sorting, format the date columns for display
+            # Only apply formatting to columns that are datetime
             for col in date_columns:
                 if pd.api.types.is_datetime64_any_dtype(filtered_deals_df[col]):
                     filtered_deals_df[col] = filtered_deals_df[col].dt.strftime('%m/%d/%Y')
@@ -580,15 +603,25 @@ if uploaded_files and len(uploaded_files) == 2:
 
                 # Display related appointments in the expander with conditional formatting
                 with st.expander(f"Related Appointments ({appointment_count})", expanded=expander_states.get(deal_name, False)):
-                    if not related_appointments.empty:
-                        styled_appointments = apply_appointment_formatting(related_appointments)
-                        st.dataframe(styled_appointments)
-                        # Write Appointments Data to Excel
-                        related_appointments.to_excel(writer, startrow=current_row, index=False, header=True, sheet_name='Data')
-                        current_row += len(related_appointments) + 2
-                    else:
-                        st.write("No related appointments found.")
-                        current_row += 2  # Add spacing even if no appointments
+                    # Check if appointments_df is not empty before displaying appointments section
+                    if not appointments_df.empty:
+                        # Fetch and display related Appointments
+                        related_appointments = appointments_df[appointments_df['Regarding'] == deal_name].drop(columns=['Regarding'])
+
+                        # Calculate the number of related appointments
+                        appointment_count = len(related_appointments)
+
+                        # Display related appointments in the expander with conditional formatting
+                        with st.expander(f"Related Appointments ({appointment_count})", expanded=expander_states.get(deal_name, False)):
+                            if not related_appointments.empty:
+                                styled_appointments = apply_appointment_formatting(related_appointments)
+                                st.dataframe(styled_appointments)
+                                # Write Appointments Data to Excel
+                                related_appointments.to_excel(writer, startrow=current_row, index=False, header=True, sheet_name='Data')
+                                current_row += len(related_appointments) + 2
+                            else:
+                                st.write("No related appointments found.")
+                                current_row += 2  # Add spacing even if no appointments
 
                 # Gantt chart generation button using Streamlit with custom styling
                 if st.button(f"Generate Gantt Chart for {deal_name}", key=f"gantt_{idx}_{deal_name}"):
@@ -632,4 +665,4 @@ if uploaded_files and len(uploaded_files) == 2:
     except Exception as e:
         st.error(f"An error occurred: {e}")
 else:
-    st.info("Please upload exactly two Excel files: one for Deals/Tasks and one for Appointments.")
+    st.info("Please upload at least one Excel file (Deals/Tasks) to get started.")
